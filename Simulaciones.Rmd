@@ -1,0 +1,480 @@
+---
+title: "Simulaciones"
+author: "Josué Caldas"
+date: "6/6/2022"
+output: html_document
+---
+
+Instalamos librerias
+
+```{r}
+library(simglm)
+library(lmridge)
+library(tidyverse)
+library(caret)
+library(purrr)
+library(dplyr)
+#library(dplyr)
+library(readr)
+library(caret)
+library(ggplot2)
+library(repr)
+library(ISLR)
+library(haven)
+library(jtools)
+library(glmnet)
+library(broom.mixed)
+library(genridge)
+library(lmridge)
+library(skimr)
+library(tidyverse)
+library(DataExplorer)
+library(scales)
+library(corrr)
+library(pls)
+library(faraway)
+```
+
+### Generamos la base de datos Ridge
+
+Generamos los datos para la regresión Ridge
+
+```{r}
+set.seed(2)
+
+sim_ridge <- list(
+  formula = y ~ 1 + x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9 + x10 + x11 + x12 + x13 + x14 + x15 + x16 + x17 + x18 + x19 + x20 + x21 + x22 + x23 + x24 + x25 + x26 + x27 + x28 + x29 + x30 + x31 + x32 + x33 + x34 + x35 + x36 + x37 + x38 + x39 + x40 + x41 + x42 + x43 + x44 + x45,
+  fixed = list(x1 = list(var_type = 'continuous', mean = 25, sd = 5),
+               x2 = list(var_type = 'continuous', mean = 28, sd = 1),
+               x3 = list(var_type = 'continuous', mean = 65, sd = 3),
+               x4 = list(var_type = 'continuous', mean = 34, sd = 6),
+               x5 = list(var_type = 'continuous', mean = 24, sd = 2),
+               x6 = list(var_type = 'continuous', mean = 28, sd = 2),
+               x7 = list(var_type = 'continuous', mean = 61, sd = 6),
+               x8 = list(var_type = 'continuous', mean = 54, sd = 5),
+               x9 = list(var_type = 'continuous', mean = 12, sd = 2),
+               x10 = list(var_type = 'continuous', mean = 34, sd = 2),
+               x11 = list(var_type = 'continuous', mean = 34, sd = 2),
+               x12 = list(var_type = 'continuous', mean = 45, sd = 4),
+               x13 = list(var_type = 'continuous', mean = 76, sd = 7),
+               x14 = list(var_type = 'continuous', mean = 38, sd = 3),
+               x15 = list(var_type = 'continuous', mean = 67, sd = 7),
+               x16 = list(var_type = 'continuous', mean = 67, sd = 7),
+               x17 = list(var_type = 'continuous', mean = 34, sd = 3),
+               x18 = list(var_type = 'continuous', mean = 23, sd = 2),
+               x19 = list(var_type = 'continuous', mean = 23, sd = 2),
+               x20 = list(var_type = 'continuous', mean = 24, sd = 2),
+               x21 = list(var_type = 'continuous', mean = 76, sd = 8),
+               x22 = list(var_type = 'continuous', mean = 34, sd = 3),
+               x23 = list(var_type = 'continuous', mean = 56, sd = 5),
+               x24 = list(var_type = 'continuous', mean = 27, sd = 3),
+               x25 = list(var_type = 'continuous', mean = 86, sd = 8),
+               x26 = list(var_type = 'continuous', mean = 45, sd = 4),
+               x27 = list(var_type = 'continuous', mean = 45, sd = 5),
+               x28 = list(var_type = 'continuous', mean = 35, sd = 3),
+               x29 = list(var_type = 'continuous', mean = 45, sd = 5),
+               x30 = list(var_type = 'continuous', mean = 75, sd = 7),
+               x31 = list(var_type = 'continuous', mean = 34, sd = 3),
+               x32 = list(var_type = 'continuous', mean = 34, sd = 4),
+               x33 = list(var_type = 'continuous', mean = 86, sd = 8),
+               x34 = list(var_type = 'continuous', mean = 45, sd = 4),
+               x35 = list(var_type = 'continuous', mean = 25, sd = 2),
+               x36 = list(var_type = 'continuous', mean = 23, sd = 2),
+               x37 = list(var_type = 'continuous', mean = 22, sd = 2),
+               x38 = list(var_type = 'continuous', mean = 34, sd = 3),
+               x39 = list(var_type = 'continuous', mean = 65, sd =6),
+               x40 = list(var_type = 'continuous', mean = 23, sd = 2),
+               x41 = list(var_type = 'continuous', mean = 43, sd = 4),
+               x42 = list(var_type = 'continuous', mean = 68, sd = 6),
+               x43 = list(var_type = 'continuous', mean = 22, sd = 2),
+               x44 = list(var_type = 'continuous', mean = 44, sd = 4),
+               x45 = list(var_type = 'continuous', mean = 27, sd = 2)),
+  error = list(variance = 1),
+  sample_size = 50,
+    reg_weights = c(2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2)
+)
+data_ridge <- simulate_fixed(data = NULL, sim_ridge) %>%
+              simulate_error(sim_ridge) %>%
+              generate_response(sim_ridge)
+
+```
+
+
+```{r}
+head(data_ridge)
+```
+
+Nos quedamos solo con los predictores Ridge
+
+```{r}
+data_ridge = subset(data_ridge, select= -c(level1_id, error, fixed_outcome, random_effects, X.Intercept.))
+colnames(data_ridge)
+```
+
+### Base de datos Lasso
+
+
+```{r}
+set.seed(2) 
+
+sim_lasso <- list(
+  formula = y ~ 1 + x1 + x2 + x3 + x4 + x5,
+  fixed = list(x1 = list(var_type = 'continuous', mean = 15, sd = 1),
+               x2 = list(var_type = 'continuous', mean = 18, sd = 1),
+               x3 = list(var_type = 'continuous', mean = 20, sd = 1),
+               x4 = list(var_type = 'continuous', mean = 21, sd = 2),
+               x5 = list(var_type = 'continuous', mean = 18, sd = 2)),
+  error = list(variance = 4),
+  sample_size = 50,
+  reg_weights = c(5, 5, 5, 5, 5, 5)
+)
+
+data_lasso1 <- simulate_fixed(data = NULL, sim_lasso) %>%
+              simulate_error(sim_lasso) %>%
+              generate_response(sim_lasso)
+```
+
+Nos quedamos solo con los predictores Lasso
+
+```{r}
+data_lasso1 = subset(data_lasso1, select= -c(level1_id, error, fixed_outcome, random_effects, X.Intercept.))
+colnames(data_lasso1)
+```
+
+Generamos la data que no está relacionada con y
+
+```{r}
+data_lasso2 <- matrix(rnorm(n = 40*50, mean = 0, sd = 0.1), ncol = 40L)
+#data_lasso2 <- apply(data_lasso2, 2, scale)
+```
+
+
+===================================================
+
+```{r}
+data_lasso2 = matrix(sample(30:1500, 2000, replace = TRUE), ncol = 40)
+```
+
+===================================================
+
+
+Hacemos merge para que la base combine los predictores con las variables no relacionadas
+
+```{r}
+data_lasso = merge(data_lasso1, data_lasso2, by = "row.names", all.x = TRUE)
+data_lasso = subset(data_lasso, select = -c(Row.names))
+```
+
+
+# ======================== #
+# Analizamos la data Ridge #
+# ======================== #
+
+### Ridge
+
+Creamos el training y test set
+
+```{r}
+set.seed(2)
+index = sample(1:nrow(data_ridge), 0.7*nrow(data_ridge))
+
+# Creamos el training set
+rtrain = data_ridge[index,]
+
+# Creamos el test set
+rtest = data_ridge[-index,]
+
+# Evaluamos
+dim(rtrain)
+dim(rtest)
+```
+
+
+El paquete glmnet necesita una matriz numérica. Aquí se crea mediante la función `dummyVars`
+
+```{r}
+rvariable_names <- names(data_ridge)
+rdummies <- dummyVars(y ~., data = data_ridge[, rvariable_names])
+
+rtrain_dummies <- predict(rdummies, newdata = rtrain[, rvariable_names])
+
+rtest_dummies = predict(rdummies, newdata = rtest[, rvariable_names])
+
+print(dim(rtrain_dummies)); print(dim(rtest_dummies))
+```
+
+# Dividimos los y train-test y los x train-test
+
+```{r}
+set.seed(2)
+# Training set
+x_rtrain <- as.matrix(rtrain_dummies)
+y_rtrain <- rtrain$y
+#Test set
+x_rtest <- as.matrix(rtest_dummies)
+y_rtest <- rtest$y
+```
+
+# Calculamos el lambda optimo
+
+```{r}
+rgrid <- 10^seq(10, -2, length = 100)
+rcv_ridge <- cv.glmnet(x_rtrain, y_rtrain, alpha = 0, lambda = rgrid, standardize = TRUE, nfolds = 10)
+rridge_bestlam <- rcv_ridge$lambda.min
+rridge_bestlam
+plot(rcv_ridge)
+```
+
+# Estimamos la función con el lambda optimo
+
+```{r}
+rridge <- glmnet(x = x_rtrain, y = y_rtrain, alpha = 0, lambda = rridge_bestlam, standardize = TRUE)
+#summary(rridge)
+```
+
+```{r}
+round(coef(rridge), 4)
+```
+
+
+ la función de evaluación del modelo Ridge
+
+```{r}
+# Compute R^2 from true and predicted values
+eval_results <- function(true, predicted, df) {
+  SSE <- sum((predicted - true)^2)
+  SST <- sum((true - mean(true))^2)
+  R_square <- 1 - SSE / SST
+  RMSE = sqrt(SSE/nrow(df))
+
+  # Model performance metrics
+data.frame(
+  RMSE = RMSE,
+  Rsquare = R_square
+)
+  
+}
+```
+
+Calculamos el Adjusted R squared y el RMSE para el training test
+
+```{r}
+rrprediction_train <- predict(rridge, s = rridge_bestlam, newx = x_rtrain)
+eval_results(y_rtrain, rrprediction_train, rtrain)
+```
+Calculamos el Adjusted R squared y el RMSE para el test test
+
+```{r}
+rrprediction_test <- predict(rridge, s = rridge_bestlam, newx = x_rtest)
+eval_results(y_rtest, rrprediction_test, rtest)
+```
+
+### Laso
+
+Escogemos el mejor lambda
+
+```{r}
+rgrid2 <- 10^seq(10, -2, length = 100)
+rcv_lasso <- cv.glmnet(x_rtrain, y_rtrain, alpha = 1, lambda = rgrid2, standardize = TRUE, nfolds = 10)
+rlasso_bestlam <- rcv_lasso$lambda.min
+```
+
+Estimamos la función con el lambda optimo
+
+```{r}
+rlasso <- glmnet(x = x_rtrain, y = y_rtrain, alpha = 1, lambda = rlasso_bestlam, standardize = TRUE)
+summary(rlasso)
+```
+
+Calculamos el Adjusted R squared y el RMSE para el training test Lasso
+
+```{r}
+rlprediction_train <- predict(rlasso, s = rlasso_bestlam, newx = x_rtrain)
+eval_results(y_rtrain, rlprediction_train, rtrain)
+```
+
+Calculamos el Adjusted R squared y el RMSE para el test test Lasso
+
+```{r}
+rlprediction_test <- predict(rlasso, s = rlasso_bestlam, newx = x_rtest)
+eval_results(y_rtest, rlprediction_test, rtest)
+```
+
+Estimamos los coeficientes de la regresión Lasso
+
+```{r}
+round(coef(rlasso), 4)
+```
+
+# ======================== #
+# Analizamos la data Lasso #
+# ======================== #
+
+### Lasso
+
+```{r}
+set.seed(2)
+lindex = sample(1:nrow(data_lasso), 0.7*nrow(data_lasso))
+
+# Creamos el training set
+ltrain = data_lasso[lindex,]
+
+# Creamos el test set
+
+ltest = data_lasso[-lindex,]
+
+# Evaluamos
+dim(ltrain)
+dim(ltest)
+```
+
+El paquete glmnet necesita una matriz numerica. Aqui se crea con la funcion "dummyVars"
+
+```{r}
+lvariables_names <- names(data_lasso)
+ldummies <- dummyVars(y ~., data = data_lasso[, lvariables_names])
+
+ltrain_dummies <- predict(ldummies, newdata = ltrain[,lvariables_names])
+
+ltest_dummies = predict(ldummies, newdata = ltest[, lvariables_names])
+
+print(dim(ltrain_dummies)); print(dim(ltest_dummies))
+```
+
+Dividimos los y train-test y los x train-test
+
+```{r}
+set.seed(2)
+# Training set
+x_ltrain <- as.matrix(ltrain_dummies)
+y_ltrain <- ltrain$y
+
+# Test set
+x_ltest <- as.matrix(ltest_dummies)
+y_ltest <- ltest$y
+```
+
+Calculamos el lambda optimo
+
+```{r}
+lgrid <- 10^seq(10, -2, length = 100)
+lcv_ridge <- cv.glmnet(x_ltrain, y_ltrain, alpha = 0, lambda = lgrid, standardize = TRUE, nfolds = 10)
+lridge_bestlam <- lcv_ridge$lambda.min
+```
+
+Estimamos la funcion con el lambda optimo
+
+```{r}
+lridge <- glmnet(x = x_ltrain, y = y_ltrain, alpha = 0, lambda = lridge_bestlam, standardize = TRUE)
+```
+
+Estimamos los coeficientes
+
+```{r}
+round(coef(lridge), 4)
+```
+
+Calculamos el Adjusted R Squared y RMSE para el training set Ridge
+
+```{r}
+lrprediction_train <- predict(lridge, s = lridge_bestlam, newx = x_ltrain)
+eval_results(y_ltrain, lrprediction_train, ltrain)
+```
+
+Calculamos el Adjusted R Squared y RMSE para el test set Ridge
+
+```{r}
+lrprediction_test <- predict(lridge, s = lridge_bestlam, newx = x_ltest)
+eval_results(y_ltest, lrprediction_test, ltest)
+```
+
+### Lasso
+
+Escogemos el mejor lambda
+
+```{r}
+lgrid2 <- 10^seq(10, -2, length = 100)
+lcv_lasso <- cv.glmnet(x_ltrain, y_ltrain, alpha = 1, lambda = lgrid2, standardize = TRUE, nfolds = 10)
+llasso_bestlam <- lcv_lasso$lambda.min
+```
+
+Estimamos la funcion con el lambda optimo
+
+```{r}
+llasso <- glmnet(x = x_ltrain, y = y_ltrain, alpha = 1, lambda = llasso_bestlam, standardize = TRUE)
+summary(llasso)
+```
+
+
+Calculamos el Adjusted R squared y el RMSE para el training test Lasso
+
+```{r}
+llprediction_train <- predict(llasso, s = llasso_bestlam, newx = x_ltrain)
+eval_results(y_ltrain, llprediction_train, ltrain)
+```
+
+Calculamos el Adjusted R squared y el RMSE para el test test Lasso
+
+```{r}
+llprediction_test <- predict(llasso, s = llasso_bestlam, newx = x_ltest)
+eval_results(y_ltest, llprediction_test, ltest)
+```
+
+Estimamos los coeficientes
+
+```{r}
+round(coef(llasso), 4)
+```
+
+
+
+
+
+```{r}
+#mod <- lmridge(y~., as.data.frame(Hald), K = seq(0, 0.3, 0.002))
+rridge2 <- lmridge(y~., rtrain, k = seq(0, 013, 0.002))
+```
+https://rdrr.io/cran/lmridge/man/bias.plot.html
+
+```{r}
+train_control <- trainControl(
+  method = "repeatedcv",
+  number = 5,  
+  repeats = 5,
+  savePredictions = "final"  # saves predictions from optimal tuning parameters
+)
+```
+
+```{r}
+set.seed(2)
+rridge3 <- train(
+  y ~ .,
+  data = rtrain,
+  method = "glmnet",
+  metric = "RMSE",  # Choose from RMSE, RSquared, AIC, BIC, ...others?
+  preProcess = c("center", "scale"),
+  tuneGrid = expand.grid(
+    .alpha = 0,  # optimize a ridge regression
+    .lambda = seq(0, 5, length.out = 101)
+  ),
+  trControl = train_control
+  )
+rridge3
+```
+
+```{r}
+ggplot(rridge3) +
+  labs(title = "Ridge Regression Parameter Tuning", x = "lambda")
+```
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,465 @@
+---
+title: "predict_grades_final"
+author: "Josué Caldas"
+date: "2022-07-15"
+output: html_document
+---
+
+# ====== #
+# SET UP #
+# ====== #
+
+Llamar a las librerias
+
+```{r}
+library(dplyr)
+library(plyr)
+library(readr)
+library(caret)
+library(ggplot2)
+library(repr)
+library(ISLR)
+library(haven)
+library(jtools)
+library(glmnet)
+library(broom.mixed)
+library(genridge)
+library(lmridge)
+library(skimr)
+library(tidyverse)
+library(DataExplorer)
+library(scales)
+library(corrr)
+library(pls)
+library(faraway)
+library(yarrr)
+```
+
+Importar datos
+
+```{r}
+datos = read.table("student-por.csv",sep=";",header=TRUE)
+#glimpse(datos)
+```
+
+Seleccionar pocas variables
+
+```{r}
+vars = c("G3","famsup", "failures", "sex", "famsize", "Walc", "goout")
+datos = datos[vars]  
+```
+
+Observamos los valores unicos
+
+```{r}
+unique(datos$G3)
+unique(datos$famsup)
+unique(datos$failures)
+unique(datos$sex)
+unique(datos$famsize)
+unique(datos$Walc)
+unique(datos$goout)
+```
+Convertir los valores de las variables dicotomicas a 0 1
+
+En el caso de la variable "famsup", yes = 1, no = 0.
+En el caso de la variable "sex", yes = 1, no = 0.
+En el caso de la variable "famsize", GT3 = 1, LE3 = 0. 
+
+```{r}
+datos$famsup = ifelse(datos$famsup == "yes", 1, 0)
+datos$sex = ifelse(datos$sex == "F", 1, 0)
+datos$famsize = ifelse(datos$famsize == "GT3", 1, 0)
+```
+
+En el caso de que sea necesario convertir categoricas varias se puede usar la siguiente formula:
+
+# datos$Mjob = dplyr::recode(datos$Mjob, at_home = 1, health = 2, services = 3, teacher = 4, other = 5)
+
+
+El objetivo sera convertir a todas las variables categoricas en grupos de variables dummies, donde una variable dummy por cada grupo es omitida. Se usara como referencia el siguiente thread:
+https://stats.stackexchange.com/questions/72251/an-example-lasso-regression-using-glmnet-for-binary-outcome
+
+
+Convertir a las variables "numericas" a categoricas
+
+```{r}
+datos$Walc = as.character(datos$Walc)
+datos$failures = as.character(datos$failures)
+datos$goout = as.character(datos$goout)
+```
+
+Ver la estructura de la data
+
+```{r}
+str(datos)
+```
+
+Convertir las variables numericas en vectores
+
+```{r}
+g3 = as.vector(datos$G3)
+```
+
+Modelar la matriz
+
+```{r}
+data_factors = model.matrix(g3 ~ famsup + failures + sex + famsize + Walc + goout, data = datos) [, -1] # para borrar el intercepto
+data         = as.matrix(data.frame(g3, data_factors))
+```
+
+Convertir la matriz a dataframe
+
+```{r}
+data = as.data.frame(data)
+```
+
+# Dividir en training set y test set
+
+```{r}
+set.seed(2)
+index = sample(1:nrow(data), 0.7*nrow(data))
+# Creamos el training set
+train = data[index,]
+# Creamos el test set
+test = data[-index,]
+# Evaluamos
+dim(train)
+dim(test)
+```
+
+# ================ #
+# REGRESION LINEAL #
+# ================ #
+
+
+Crear el modelo lineal
+
+```{r}
+lr = lm(g3 ~., data = train)
+summary(lr)
+```
+
+Crear la función de evaluación de los modelos
+
+```{r}
+eval_metrics = function(model, df, predictions, target){
+  resids = df[, target] - predictions
+  resids2 = resids**2
+  N = length(predictions)
+  r2 = as.character(round(summary(model)$r.squared, 4))
+  adj_r2 = as.character(round(summary(model)$r.squared, 4))
+  print(paste0("adjusted r2: ", adj_r2)) # Adjusted R-squared
+  print(paste0("RMSE: ", (as.character(round(sqrt(sum(resids2)/N), 4))))) # RMSE
+}
+```
+
+Calcular el Adjusted R squared y el RMSE para el training test
+
+```{r}
+predictions = predict(lr, newdata = train)
+eval_metrics(lr, train, predictions, target = "g3")
+```
+
+Calcular el Adjusted R squared y el RMSE para el test test
+
+```{r}
+predictions = predict(lr, newdata = test)
+eval_metrics(lr, test, predictions, target = "g3")
+```
+
+Calcular coeficientes
+
+```{r}
+lr$coefficients
+```
+
+
+Gráfico de los coeficientes de la regresión lineal
+
+```{r}
+linear_coefs <- lr$coefficients[-1] %>% # -1 para que el intercepto no salga en el grafico
+                enframe(name = "predictor", value = "coeficiente")
+linear_coefs %>%
+  filter(predictor != "(intercept)") %>%
+  ggplot(aes(x = predictor, y = coeficiente)) +
+  geom_col() + 
+  ggtitle("Coeficientes del modelo OLS") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(axis.text.x = element_text(size = 7, angle = 90)) +
+  ylim(-4, 4)
+```
+
+Exportar el grafico a jpg
+
+```{r}
+jpeg("coefs_lr.jpeg", width = 12, height = 4, units = 'in', res = 600)
+linear_coefs <- lr$coefficients[-1] %>%
+                enframe(name = "Predictores", value = "Coeficientes")
+linear_coefs %>%
+  filter(Predictores != "(intercept)") %>%
+  ggplot(aes(x = Predictores, y = Coeficientes)) +
+  geom_col() +
+  ggtitle("Coeficientes del modelo OLS") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(axis.text.x = element_text(size = 7, angle = 90)) +
+  ylim(-5, 5)
+dev.off()
+```
+
+
+# =============== #
+# REGRESION RIDGE #
+# =============== #
+
+Dividir el training y test set en variables x y
+
+```{r}
+set.seed(2)
+# Training set
+x_train = train%>%select(-g3)%>%as.matrix
+y_train <- train$g3
+#Test set
+x_test <- test%>%select(-g3)%>%as.matrix
+y_test <- test$g3
+```
+
+Definir el modelo Ridge
+
+```{r}
+grid <- 10^seq(5, -2, length = 100)
+ridge <- glmnet(x_train, y_train, alpha = 0, lambda = grid)
+summary(ridge)
+```
+
+Hallar el lambda óptimo mediante cross validation
+
+```{r}
+cv_ridge <- cv.glmnet(x_train, y_train, alpha = 0, lambda = grid)
+ridge_bestlam <- cv_ridge$lambda.min
+ridge_bestlam
+par("mar"=c(5,5,5,2))
+plot(cv_ridge)
+title(main = "Tuning parameter apropiado para modelo Ridge", line = 3)
+```
+
+Exportar el grafico a jpg
+
+```{r}
+jpeg("cv_ridge.jpeg", width = 6, height = 4, units = 'in', res = 600)
+par("mar"=c(5,5,5,2))
+plot(cv_ridge)
+title(main = "Tuning parameter apropiado para modelo Ridge", line = 3)
+dev.off()
+```
+
+Crear la función de evaluación del modelo Ridge
+
+```{r}
+# Compute R^2 from true and predicted values
+eval_results <- function(true, predicted, df) {
+  SSE <- sum((predicted - true)^2)
+  SST <- sum((true - mean(true))^2)
+  R_square <- 1 - SSE / SST
+  RMSE = sqrt(SSE/nrow(df))
+  # Model performance metrics
+data.frame(
+  RMSE = RMSE,
+  Rsquare = R_square
+)
+}
+```
+
+Calcular el Adjusted R squared y el RMSE para el training test
+
+```{r}
+prediction_ridge_train <- predict(ridge, s = ridge_bestlam, newx = x_train)
+eval_results(y_train, prediction_ridge_train, train)
+```
+
+Calcular el Adjusted R squared y el RMSE para el test test
+
+```{r}
+prediction_ridge_test <- predict(ridge, s = ridge_bestlam, newx = x_test)
+eval_results(y_test, prediction_ridge_test, test)
+```
+
+Grafico
+
+```{r}
+plot(ridge, xvar = "lambda") +
+  xlim(-5, 10)
+```
+
+Exportar a jpg 
+
+```{r}
+jpeg("lambda_ridge.jpeg", width = 6, height = 4, units = 'in', res = 600)
+plot(ridge, xvar = "lambda")
+dev.off()
+```
+
+El modelo ridge con el mejor lambda
+
+```{r}
+ridge_dos <- glmnet(x = x_train, y = y_train, alpha = 0, lambda = ridge_bestlam)
+#summary(ridge_dos)
+```
+
+Coeficientes
+
+```{r}
+round(coef(ridge_dos), 4)
+```
+
+Gráfico de coeficientes Ridge
+
+```{r}
+ridge_coefs <- coef(ridge_dos) %>%
+               as.matrix() %>%
+               as_tibble(rownames = "predictor") %>%
+               dplyr::rename(coeficiente = s0)
+ridge_coefs %>%
+  filter(predictor != "(Intercept)") %>%
+  ggplot(aes(x = predictor, y = coeficiente)) +
+  geom_col() +
+  labs(title = "Coeficientes del modelo Ridge") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 7, angle = 90)) +
+  ylim(-4, 4)
+```
+
+Exportar a jpg
+
+```{r}
+jpeg("coefs_ridge.jpeg", width = 12, height = 4, units = 'in', res = 600)
+ridge_coefs <- coef(ridge_dos) %>%
+               as.matrix() %>%
+               as_tibble(rownames = "predictor") %>%
+               dplyr::rename(coeficiente = s0)
+ridge_coefs %>%
+  filter(predictor != "(Intercept)") %>%
+  ggplot(aes(x = predictor, y = coeficiente)) +
+  geom_col() +
+  ggtitle("Coeficientes del modelo Ridge") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(axis.text.x = element_text(size = 7, angle = 90)) +
+  ylim(-5, 5)
+dev.off()
+```
+
+
+# =============== #
+# REGRESION LASSO #
+# =============== #
+
+Definimos el modelo Lasso
+
+```{r}
+grid_lasso <- 10^seq(7, -5, length = 100)
+lasso <- glmnet(x_train, y_train, alpha = 1, lambda = grid_lasso)
+```
+
+Calculamos el mejor lambda
+
+```{r}
+set.seed(2)
+cv_lasso <- cv.glmnet(x_train, y_train, alpha = 1, lambda = grid_lasso)
+lasso_bestlam <- cv_lasso$lambda.min
+lasso_bestlam
+par("mar"=c(5,5,5,2))
+plot(cv_lasso)
+title(main = "Tuning parameter apropiado para modelo Lasso", line = 3)
+```
+
+Exportmos a jpg
+
+```{r}
+jpeg("cv_lasso.jpeg", width = 6, height = 4, units = 'in', res = 600)
+par("mar"=c(5,5,5,2))
+plot(cv_lasso)
+title(main = "Tuning parameter apropiado para modelo Lasso", line = 3)
+dev.off()
+```
+
+Calculamos el RMSE ajustado y el Rsquared para el training set
+
+```{r}
+prediction_lasso_train <- predict(lasso, s = lasso_bestlam, newx = x_train)
+eval_results(y_train, prediction_lasso_train, train)
+```
+
+Calculamos el RMSE ajustado y el Rsquared para el test set
+
+```{r}
+prediction_lasso_test <- predict(lasso, s = lasso_bestlam, newx = x_test)
+eval_results(y_test, prediction_lasso_test, test)
+```
+
+
+```{r}
+plot(lasso, xvar = "lambda")
+```
+
+
+Exportamos a jpg
+
+```{r}
+jpeg("lambda_lasso.jpeg", width = 6, height = 4, units = 'in', res = 600)
+plot(lasso, xvar = "lambda")
+dev.off()
+```
+
+Entrenamos el modelo con el mejor lambda
+
+```{r}
+lasso_dos <- glmnet(x = x_train, y = y_train, alpha = 1, lambda = lasso_bestlam)
+summary(lasso_dos)
+```
+
+
+```{r}
+round(coef(lasso_dos), 4)
+```
+
+Gráfico de coeficientes Lasso
+
+```{r}
+lasso_coefs <- coef(lasso_dos) %>%
+               as.matrix() %>%
+               as_tibble(rownames = "predictor") %>%
+               dplyr::rename(coeficiente = s0)
+lasso_coefs %>%
+  filter(predictor != "(Intercept)") %>%
+  ggplot(aes(x = predictor, y = coeficiente)) +
+  geom_col() +
+  labs(title = "Coeficientes del modelo Ridge") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 7, angle = 90)) +
+  ylim(-4, 4)
+```
+
+Exportar a jpg
+
+```{r}
+jpeg("coefs_lasso.jpeg", width = 12, height = 4, units = 'in', res = 600)
+lasso_coefs <- coef(lasso_dos) %>%
+               as.matrix() %>%
+               as_tibble(rownames = "predictor") %>%
+               dplyr::rename(coeficiente = s0)
+lasso_coefs %>%
+  filter(predictor != "(Intercept)") %>%
+  ggplot(aes(x = predictor, y = coeficiente)) +
+  geom_col() +
+  ggtitle("Coeficientes del modelo Lasso") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(axis.text.x = element_text(size = 7, angle = 90)) +
+  ylim(-5, 5)
+dev.off()
+```
+
+
